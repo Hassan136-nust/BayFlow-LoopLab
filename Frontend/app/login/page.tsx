@@ -1,5 +1,8 @@
 "use client";
 
+import { API_BASE_URL } from "@/lib/api";
+import { setAuthToken, setAuthRole } from "@/lib/auth";
+
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -25,7 +28,7 @@ export default function LoginPage() {
 
     try {
       // 1. Attempt call to BayFlow API at http://localhost:4000/api/auth/login
-      const res = await fetch("http://localhost:4000/api/auth/login", {
+      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -39,11 +42,11 @@ export default function LoginPage() {
       if (res.ok && data.success) {
         setSuccessMsg("Signed in successfully!");
         if (data.accessToken) {
-          localStorage.setItem("bayflow_token", data.accessToken);
+          setAuthToken(data.accessToken);
           try {
             const payload = JSON.parse(atob(data.accessToken.split(".")[1]));
             if (payload?.role) {
-              localStorage.setItem("bayflow_user_role", payload.role);
+              setAuthRole(payload.role);
             }
           } catch (e) {
             console.warn("Could not decode JWT payload:", e);

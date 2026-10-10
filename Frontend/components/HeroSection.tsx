@@ -1,4 +1,5 @@
 "use client";
+import { getAuthToken, setAuthToken, clearAuthToken, getAuthRole, setAuthRole, clearAuthRole } from "@/lib/auth";
 
 import React, { useState } from "react";
 import Link from "next/link";
@@ -14,7 +15,7 @@ export default function HeroSection({ onOpenDemo }: HeroSectionProps) {
   const [activeTab, setActiveTab] = useState<"live-job" | "multi-shop" | "ai-voice">("live-job");
 
   const handleLaunchPlatform = () => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("bayflow_token") : null;
+    const token = getAuthToken();
     if (token) {
       router.push("/dashboard");
     } else {

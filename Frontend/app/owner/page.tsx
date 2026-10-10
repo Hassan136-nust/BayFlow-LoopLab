@@ -1,4 +1,5 @@
 "use client";
+import { getAuthToken, setAuthToken, clearAuthToken, getAuthRole, setAuthRole, clearAuthRole } from "@/lib/auth";
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
@@ -14,7 +15,7 @@ export default function OwnerPage() {
 
   useEffect(() => {
     try {
-      const storedToken = localStorage.getItem("bayflow_token");
+      const storedToken = getAuthToken();
       if (!storedToken) {
         router.replace("/login");
         return;
@@ -42,8 +43,8 @@ export default function OwnerPage() {
   }, [router]);
 
   const handleSignOut = () => {
-    localStorage.removeItem("bayflow_token");
-    localStorage.removeItem("bayflow_user_role");
+    clearAuthToken();
+    clearAuthRole();
     router.replace("/login");
   };
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { API_BASE_URL } from "@/lib/api";
+
 import React, { useState, useEffect } from "react";
 import VoiceCallModal from "@/components/VoiceCallModal";
 import { formatUserName } from "@/lib/utils";
@@ -87,7 +89,7 @@ export default function StaffPosView({ token, role, shopId }: StaffPosViewProps)
       const headers: any = { Authorization: `Bearer ${token}` };
       if (shopId) headers["X-Shop-Id"] = shopId;
 
-      const url = shopId ? `http://localhost:4000/api/bookings?shopId=${shopId}` : "http://localhost:4000/api/bookings";
+      const url = shopId ? `${API_BASE_URL}/api/bookings?shopId=${shopId}` : `${API_BASE_URL}/api/bookings`;
       const res = await fetch(url, { headers });
       const data = await res.json();
       const bookingList = data.data || data.bookings;
@@ -112,7 +114,7 @@ export default function StaffPosView({ token, role, shopId }: StaffPosViewProps)
 
   const fetchTechnicians = async (currentShopId: string) => {
     try {
-      const res = await fetch(`http://localhost:4000/api/shops/${currentShopId}/team`, {
+      const res = await fetch(`${API_BASE_URL}/api/shops/${currentShopId}/team`, {
         headers: { Authorization: `Bearer ${token}`, "X-Shop-Id": currentShopId },
       });
       const data = await res.json();
@@ -131,7 +133,7 @@ export default function StaffPosView({ token, role, shopId }: StaffPosViewProps)
 
   const fetchInventory = async (currentShopId: string) => {
     try {
-      const res = await fetch(`http://localhost:4000/api/shops/${currentShopId}/inventory`, {
+      const res = await fetch(`${API_BASE_URL}/api/shops/${currentShopId}/inventory`, {
         headers: { Authorization: `Bearer ${token}`, "X-Shop-Id": currentShopId },
       });
       const data = await res.json();
@@ -155,7 +157,7 @@ export default function StaffPosView({ token, role, shopId }: StaffPosViewProps)
 
   const fetchPurchaseOrders = async (currentShopId: string) => {
     try {
-      const res = await fetch(`http://localhost:4000/api/shops/${currentShopId}/inventory/purchase-orders`, {
+      const res = await fetch(`${API_BASE_URL}/api/shops/${currentShopId}/inventory/purchase-orders`, {
         headers: { Authorization: `Bearer ${token}`, "X-Shop-Id": currentShopId },
       });
       const data = await res.json();
@@ -180,7 +182,7 @@ export default function StaffPosView({ token, role, shopId }: StaffPosViewProps)
       };
       if (shopId) headers["X-Shop-Id"] = shopId;
 
-      const res = await fetch(`http://localhost:4000/api/bookings/${bookingId}/status`, {
+      const res = await fetch(`${API_BASE_URL}/api/bookings/${bookingId}/status`, {
         method: "PATCH",
         headers,
         body: JSON.stringify({ status: nextStatus, notes: note || `Transitioned to ${nextStatus}` }),
@@ -212,7 +214,7 @@ export default function StaffPosView({ token, role, shopId }: StaffPosViewProps)
       };
       if (shopId) headers["X-Shop-Id"] = shopId;
 
-      const res = await fetch(`http://localhost:4000/api/bookings/${selectedBookingForAssign.id}/assign`, {
+      const res = await fetch(`${API_BASE_URL}/api/bookings/${selectedBookingForAssign.id}/assign`, {
         method: "POST",
         headers,
         body: JSON.stringify({ technicianId: selectedTechId }),
@@ -243,7 +245,7 @@ export default function StaffPosView({ token, role, shopId }: StaffPosViewProps)
       if (shopId) headers["X-Shop-Id"] = shopId;
 
       const totalCost = Number(estimateForm.labourCost) + Number(estimateForm.partsCost);
-      const res = await fetch(`http://localhost:4000/api/bookings/${selectedBookingForEst.id}/estimate`, {
+      const res = await fetch(`${API_BASE_URL}/api/bookings/${selectedBookingForEst.id}/estimate`, {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -282,7 +284,7 @@ export default function StaffPosView({ token, role, shopId }: StaffPosViewProps)
       const totalCost = Number(adjustedLabour) + Number(partsCost);
 
       // 1. Update revised estimate in DB
-      await fetch(`http://localhost:4000/api/bookings/${selectedBookingForReview.id}/estimate`, {
+      await fetch(`${API_BASE_URL}/api/bookings/${selectedBookingForReview.id}/estimate`, {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -294,7 +296,7 @@ export default function StaffPosView({ token, role, shopId }: StaffPosViewProps)
       });
 
       // 2. Transition to Step 6: AWAITING_CUSTOMER
-      const res = await fetch(`http://localhost:4000/api/bookings/${selectedBookingForReview.id}/status`, {
+      const res = await fetch(`${API_BASE_URL}/api/bookings/${selectedBookingForReview.id}/status`, {
         method: "PATCH",
         headers,
         body: JSON.stringify({ status: "AWAITING_CUSTOMER", notes: `Estimate revised to PKR ${totalCost} and sent to customer.` }),
@@ -325,7 +327,7 @@ export default function StaffPosView({ token, role, shopId }: StaffPosViewProps)
         return;
       }
 
-      const res = await fetch(`http://localhost:4000/api/shops/${shopId}/inventory/purchase-orders`, {
+      const res = await fetch(`${API_BASE_URL}/api/shops/${shopId}/inventory/purchase-orders`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -357,7 +359,7 @@ export default function StaffPosView({ token, role, shopId }: StaffPosViewProps)
   const handleReceivePo = async (poId: string) => {
     if (!shopId) return;
     try {
-      const res = await fetch(`http://localhost:4000/api/shops/${shopId}/inventory/purchase-orders/${poId}/receive`, {
+      const res = await fetch(`${API_BASE_URL}/api/shops/${shopId}/inventory/purchase-orders/${poId}/receive`, {
         method: "PATCH",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -410,7 +412,7 @@ export default function StaffPosView({ token, role, shopId }: StaffPosViewProps)
           };
         });
 
-      const res = await fetch(`http://localhost:4000/api/bookings/${bookingId}/parts/allocate`, {
+      const res = await fetch(`${API_BASE_URL}/api/bookings/${bookingId}/parts/allocate`, {
         method: "POST",
         headers,
         body: JSON.stringify({ items: itemsToAllocate.length > 0 ? itemsToAllocate : [{ inventoryId: inventory[0]?.id, quantity: 1 }] }),
@@ -442,7 +444,7 @@ export default function StaffPosView({ token, role, shopId }: StaffPosViewProps)
       };
       if (shopId) headers["X-Shop-Id"] = shopId;
 
-      const res = await fetch(`http://localhost:4000/api/bookings/${selectedBookingForQc.id}/qc-issue`, {
+      const res = await fetch(`${API_BASE_URL}/api/bookings/${selectedBookingForQc.id}/qc-issue`, {
         method: "POST",
         headers,
         body: JSON.stringify({ description: qcIssueDescription }),

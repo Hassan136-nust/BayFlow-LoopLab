@@ -1,4 +1,5 @@
 "use client";
+import { getAuthToken, setAuthToken, clearAuthToken, getAuthRole, setAuthRole, clearAuthRole } from "@/lib/auth";
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
@@ -25,7 +26,7 @@ export default function UnifiedDashboardPage() {
 
   useEffect(() => {
     try {
-      const token = localStorage.getItem("bayflow_token");
+      const token = getAuthToken();
       if (!token) {
         router.replace("/login");
         return;
@@ -45,8 +46,8 @@ export default function UnifiedDashboardPage() {
         
         // Check token expiration
         if (parsed.exp && parsed.exp * 1000 < Date.now()) {
-          localStorage.removeItem("bayflow_token");
-          localStorage.removeItem("bayflow_user_role");
+          clearAuthToken();
+          clearAuthRole();
           router.replace("/login");
           return;
         }
@@ -64,8 +65,8 @@ export default function UnifiedDashboardPage() {
   }, [router]);
 
   const handleSignOut = () => {
-    localStorage.removeItem("bayflow_token");
-    localStorage.removeItem("bayflow_user_role");
+    clearAuthToken();
+    clearAuthRole();
     router.replace("/login");
   };
 

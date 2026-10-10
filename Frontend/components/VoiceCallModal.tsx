@@ -1,5 +1,7 @@
 "use client";
 
+import { getAuthToken } from "@/lib/auth";
+import { API_BASE_URL } from "@/lib/api";
 import React, { useState, useEffect, useRef } from "react";
 import { startOutgoingRingtone, stopOutgoingRingtone } from "@/lib/utils";
 
@@ -11,6 +13,7 @@ interface VoiceCallModalProps {
   onClose: () => void;
   initialStatus?: "RINGING" | "CONNECTED" | "ENDED";
   existingCallId?: string;
+  roomUrl?: string;
 }
 
 export default function VoiceCallModal({
@@ -21,30 +24,41 @@ export default function VoiceCallModal({
   onClose,
   initialStatus = "RINGING",
   existingCallId,
+  roomUrl,
 }: VoiceCallModalProps) {
-  const [callStatus, setCallStatus] = useState<
-    "RINGING" | "CONNECTED" | "ENDED"
-  >(initialStatus);
+  const [callStatus, setCallStatus] = useState<"RINGING" | "CONNECTED" | "ENDED">(initialStatus);
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
-  const [activeCallId, setActiveCallId] = useState<string | null>(
-    existingCallId || null,
-  );
+  const [activeCallId, setActiveCallId] = useState<string | null>(existingCallId || null);
+  const [activeRoomUrl, setActiveRoomUrl] = useState<string | null>(roomUrl || null);
   const [micActive, setMicActive] = useState(false);
   const [micNotice, setMicNotice] = useState<string>("");
 
   const pollTimerRef = useRef<any>(null);
   const ringTimeoutRef = useRef<any>(null);
-  const peerConnRef = useRef<RTCPeerConnection | null>(null);
-  const localStreamRef = useRef<MediaStream | null>(null);
+  const dailyRef = useRef<any>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
-  const isCallerRef = useRef<boolean>(!existingCallId);
+  const audioCtxRef = useRef<AudioContext | null>(null);
 
-  // Sync isCallerRef
+  // Sync roomUrl from props
   useEffect(() => {
-    isCallerRef.current = !existingCallId;
-  }, [existingCallId]);
+    if (roomUrl) {
+      setActiveRoomUrl(roomUrl);
+    }
+  }, [roomUrl]);
+
+  // Audio Unlock Helper for Browser Autoplay Policy
+  const unlockAudio = () => {
+    try {
+      if (remoteAudioRef.current && remoteAudioRef.current.paused) {
+        remoteAudioRef.current.play().catch(() => {});
+      }
+      if (audioCtxRef.current && audioCtxRef.current.state === "suspended") {
+        audioCtxRef.current.resume().catch(() => {});
+      }
+    } catch (e) {}
+  };
 
   // Handle Call Initiation & Outgoing Ringing Polling
   useEffect(() => {
@@ -59,11 +73,7 @@ export default function VoiceCallModal({
     setDuration(0);
     setStatusMessage("");
 
-    const activeToken =
-      token ||
-      (typeof window !== "undefined"
-        ? localStorage.getItem("bayflow_token")
-        : null);
+    const activeToken = token || getAuthToken();
 
     if (initialStatus === "RINGING") {
       // 1. Play real outgoing ringback tone for caller
@@ -75,39 +85,37 @@ export default function VoiceCallModal({
 
         if (!currentCallId && activeToken && bookingId) {
           try {
-            const res = await fetch(
-              "http://localhost:4000/api/calls/initiate",
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${activeToken}`,
-                },
-                body: JSON.stringify({ bookingId }),
+            const res = await fetch(`${API_BASE_URL}/api/calls/initiate`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${activeToken}`,
               },
-            );
+              body: JSON.stringify({ bookingId }),
+            });
             const data = await res.json();
-            if (res.ok && data.success && data.data?.callId) {
-              currentCallId = data.data.callId;
-              setActiveCallId(currentCallId);
+            const cid = data.data?.id || data.data?.callId;
+            if (res.ok && data.success && cid) {
+              currentCallId = cid;
+              setActiveCallId(cid);
+              if (data.data?.roomUrl) {
+                setActiveRoomUrl(data.data.roomUrl);
+              }
             }
           } catch (err) {
             console.warn("Failed to initiate call on backend:", err);
           }
         }
 
-        // 3. Fast poll backend (every 400ms) to check if receiver answered
+        // 3. Fast poll backend (every 300ms) to check if receiver answered
         const checkStatus = async () => {
           const targetId = currentCallId || activeCallId || bookingId;
           if (!targetId || !activeToken) return;
 
           try {
-            const res = await fetch(
-              `http://localhost:4000/api/calls/${targetId}`,
-              {
-                headers: { Authorization: `Bearer ${activeToken}` },
-              },
-            );
+            const res = await fetch(`${API_BASE_URL}/api/calls/${targetId}`, {
+              headers: { Authorization: `Bearer ${activeToken}` },
+            });
             const data = await res.json();
             const call = data.data;
 
@@ -116,27 +124,27 @@ export default function VoiceCallModal({
                 currentCallId = call.id;
                 setActiveCallId(call.id);
               }
+              if (call.roomUrl && !activeRoomUrl) {
+                setActiveRoomUrl(call.roomUrl);
+              }
 
               if (call.status === "CONNECTED") {
                 stopOutgoingRingtone();
                 if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-                if (ringTimeoutRef.current)
-                  clearTimeout(ringTimeoutRef.current);
+                if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
                 if (call.id) setActiveCallId(call.id);
                 setCallStatus("CONNECTED");
               } else if (call.status === "REJECTED") {
                 stopOutgoingRingtone();
                 if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-                if (ringTimeoutRef.current)
-                  clearTimeout(ringTimeoutRef.current);
+                if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
                 setCallStatus("ENDED");
                 setStatusMessage("Call Declined by recipient");
                 setTimeout(onClose, 1500);
               } else if (call.status === "ENDED") {
                 stopOutgoingRingtone();
                 if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-                if (ringTimeoutRef.current)
-                  clearTimeout(ringTimeoutRef.current);
+                if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
                 setCallStatus("ENDED");
                 setStatusMessage("Call Ended");
                 setTimeout(onClose, 1200);
@@ -146,9 +154,9 @@ export default function VoiceCallModal({
         };
 
         if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-        pollTimerRef.current = setInterval(checkStatus, 400);
+        pollTimerRef.current = setInterval(checkStatus, 300);
 
-        // 4. Timeout after 40 seconds if receiver doesn't answer (Missed Call)
+        // 4. Timeout after 45 seconds if receiver doesn't answer (Missed Call)
         if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
         ringTimeoutRef.current = setTimeout(async () => {
           stopOutgoingRingtone();
@@ -159,22 +167,19 @@ export default function VoiceCallModal({
           const targetId = currentCallId || activeCallId;
           if (targetId && activeToken) {
             try {
-              await fetch(
-                `http://localhost:4000/api/calls/${targetId}/status`,
-                {
-                  method: "PATCH",
-                  headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${activeToken}`,
-                  },
-                  body: JSON.stringify({ status: "MISSED" }),
+              await fetch(`${API_BASE_URL}/api/calls/${targetId}/status`, {
+                method: "PATCH",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${activeToken}`,
                 },
-              );
+                body: JSON.stringify({ status: "MISSED" }),
+              });
             } catch (e) {}
           }
 
           setTimeout(onClose, 2000);
-        }, 40000);
+        }, 45000);
       };
 
       startCall();
@@ -187,204 +192,167 @@ export default function VoiceCallModal({
     };
   }, [isOpen, initialStatus, existingCallId, bookingId, token]);
 
-  // WebRTC Audio Stream Engine & Remote Hangup Polling when CONNECTED
+  // High-Performance Daily.co Audio Engine when CONNECTED
   useEffect(() => {
     let durationInterval: any;
-    let signalingInterval: any;
     let remoteCheckInterval: any;
+    let audioSyncInterval: any;
+    let isMounted = true;
 
     if (callStatus === "CONNECTED") {
+      unlockAudio();
+
       // 1. Duration Counter
       durationInterval = setInterval(() => {
         setDuration((prev) => prev + 1);
       }, 1000);
 
-      const targetId = activeCallId || existingCallId;
-      const activeToken =
-        token ||
-        (typeof window !== "undefined"
-          ? localStorage.getItem("bayflow_token")
-          : null);
+      const targetId = activeCallId || existingCallId || bookingId;
+      const activeToken = token || getAuthToken();
 
-      const role: "caller" | "receiver" = isCallerRef.current
-        ? "caller"
-        : "receiver";
-      let lastSignalTime = 0;
-      const handledSignalIds = new Set<string>();
-
-      // 2. Initialize Real WebRTC Audio Peer Connection
-      const setupWebRTC = async () => {
-        if (
-          typeof window === "undefined" ||
-          !navigator.mediaDevices?.getUserMedia
-        ) {
-          setMicNotice("WebRTC not supported in this environment");
-          return;
-        }
-
+      // 2. Connect to Daily.co Audio Room
+      const connectDaily = async () => {
         try {
-          // Request real microphone audio
-          const stream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true,
-            },
-            video: false,
-          });
+          let resolvedRoomUrl = activeRoomUrl;
 
-          localStreamRef.current = stream;
-          setMicActive(true);
-          setMicNotice("Live Voice Audio Active");
-
-          const pc = new RTCPeerConnection({
-            iceServers: [
-              { urls: "stun:stun.l.google.com:19302" },
-              { urls: "stun:stun1.l.google.com:19302" },
-            ],
-          });
-          peerConnRef.current = pc;
-
-          // Add microphone audio tracks to peer connection
-          stream
-            .getAudioTracks()
-            .forEach((track) => pc.addTrack(track, stream));
-
-          // Receive remote audio track from other person
-          pc.ontrack = (event) => {
-            if (event.streams && event.streams[0]) {
-              if (!remoteAudioRef.current) {
-                const audio = new Audio();
-                audio.srcObject = event.streams[0];
-                audio.autoplay = true;
-                remoteAudioRef.current = audio;
-              } else {
-                remoteAudioRef.current.srcObject = event.streams[0];
-              }
-              remoteAudioRef.current.play().catch(() => {});
-            }
-          };
-
-          // Send ICE candidates to opposing party
-          pc.onicecandidate = (event) => {
-            if (event.candidate && targetId && activeToken) {
-              fetch(`http://localhost:4000/api/calls/${targetId}/signal`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${activeToken}`,
-                },
-                body: JSON.stringify({
-                  sender: role,
-                  type: "candidate",
-                  payload: event.candidate,
-                }),
-              }).catch(() => {});
-            }
-          };
-
-          // If caller, initiate WebRTC Offer
-          if (role === "caller") {
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-
+          // Fast retry loop to ensure roomUrl is resolved immediately
+          let attempts = 0;
+          while (!resolvedRoomUrl && attempts < 10 && isMounted) {
+            attempts++;
             if (targetId && activeToken) {
-              await fetch(
-                `http://localhost:4000/api/calls/${targetId}/signal`,
-                {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${activeToken}`,
-                  },
-                  body: JSON.stringify({
-                    sender: role,
-                    type: "offer",
-                    payload: offer,
-                  }),
-                },
-              ).catch(() => {});
+              try {
+                const res = await fetch(`${API_BASE_URL}/api/calls/${targetId}`, {
+                  headers: { Authorization: `Bearer ${activeToken}` },
+                });
+                const data = await res.json();
+                if (data.data?.roomUrl) {
+                  resolvedRoomUrl = data.data.roomUrl;
+                  setActiveRoomUrl(resolvedRoomUrl);
+                  break;
+                }
+              } catch (fetchErr) {}
+            }
+            if (!resolvedRoomUrl) {
+              await new Promise((r) => setTimeout(r, 250));
             }
           }
 
-          // 3. Signaling Poller (every 400ms for instant voice exchange)
-          signalingInterval = setInterval(async () => {
-            if (!targetId || !activeToken || !peerConnRef.current) return;
+          // Guaranteed fallback room URL
+          if (!resolvedRoomUrl) {
+            resolvedRoomUrl = `https://reachly.daily.co/bayflow-${bookingId.slice(0, 8)}`;
+            setActiveRoomUrl(resolvedRoomUrl);
+          }
 
+          // Dynamically import daily-js (SSR safe)
+          const DailyIframe = (await import("@daily-co/daily-js")).default;
+
+          // Clean up any existing call instance
+          if (dailyRef.current) {
             try {
-              const res = await fetch(
-                `http://localhost:4000/api/calls/${targetId}/signals?sender=${role}&after=${lastSignalTime}`,
-                {
-                  headers: { Authorization: `Bearer ${activeToken}` },
-                },
-              );
-              const data = await res.json();
-              const signals = data.data || [];
+              await dailyRef.current.leave();
+              dailyRef.current.destroy();
+            } catch (e) {}
+            dailyRef.current = null;
+          }
 
-              for (const sig of signals) {
-                if (handledSignalIds.has(sig.id)) continue;
-                handledSignalIds.add(sig.id);
-                lastSignalTime = Math.max(lastSignalTime, sig.timestamp);
+          if (!isMounted) return;
 
-                const peer = peerConnRef.current;
-                if (!peer) continue;
+          // Create headless call object for pure audio
+          const callObject = DailyIframe.createCallObject({
+            audioSource: true,
+            videoSource: false,
+            subscribeToTracksAutomatically: true,
+          });
+          dailyRef.current = callObject;
 
-                if (sig.type === "offer" && role === "receiver") {
-                  await peer.setRemoteDescription(
-                    new RTCSessionDescription(sig.payload),
-                  );
-                  const answer = await peer.createAnswer();
-                  await peer.setLocalDescription(answer);
+          // Audio track sync function: works regardless of who joined first or on different Wi-Fi
+          const syncRemoteAudioTracks = () => {
+            if (!isMounted || !callObject) return;
+            try {
+              const participants = callObject.participants();
+              for (const p of Object.values(participants) as any[]) {
+                if (p && !p.local) {
+                  const audioTrack =
+                    p.audioTrack ||
+                    p.tracks?.audio?.persistentTrack ||
+                    p.tracks?.audio?.track;
 
-                  await fetch(
-                    `http://localhost:4000/api/calls/${targetId}/signal`,
-                    {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${activeToken}`,
-                      },
-                      body: JSON.stringify({
-                        sender: role,
-                        type: "answer",
-                        payload: answer,
-                      }),
-                    },
-                  );
-                } else if (sig.type === "answer" && role === "caller") {
-                  if (peer.signalingState !== "stable") {
-                    await peer.setRemoteDescription(
-                      new RTCSessionDescription(sig.payload),
-                    );
+                  if (audioTrack && audioTrack.readyState === "live") {
+                    const stream = new MediaStream([audioTrack]);
+
+                    // Sink 1: Active DOM Audio element
+                    if (remoteAudioRef.current) {
+                      if (remoteAudioRef.current.srcObject !== stream) {
+                        remoteAudioRef.current.srcObject = stream;
+                      }
+                      remoteAudioRef.current.play().catch(() => {});
+                    }
+
+                    // Sink 2: Direct WebAudio API route to speakers
+                    try {
+                      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+                      if (AudioCtx) {
+                        if (!audioCtxRef.current || audioCtxRef.current.state === "closed") {
+                          audioCtxRef.current = new AudioCtx();
+                        }
+                        if (audioCtxRef.current.state === "suspended") {
+                          audioCtxRef.current.resume().catch(() => {});
+                        }
+                        const src = audioCtxRef.current.createMediaStreamSource(stream);
+                        src.connect(audioCtxRef.current.destination);
+                      }
+                    } catch (audioErr) {}
                   }
-                } else if (sig.type === "candidate") {
-                  try {
-                    await peer.addIceCandidate(
-                      new RTCIceCandidate(sig.payload),
-                    );
-                  } catch (e) {}
                 }
               }
-            } catch (err) {}
-          }, 400);
-        } catch (micErr: any) {
-          console.warn("Could not capture local microphone:", micErr);
-          setMicNotice("Microphone unavailable / permission denied");
+            } catch (syncErr) {}
+          };
+
+          // Hook all relevant Daily events to sync audio instantly
+          callObject.on("joined-meeting", () => {
+            if (!isMounted) return;
+            setMicActive(true);
+            setMicNotice("Live Voice Audio Active");
+            syncRemoteAudioTracks();
+          });
+
+          callObject.on("participant-joined", syncRemoteAudioTracks);
+          callObject.on("participant-updated", syncRemoteAudioTracks);
+          callObject.on("track-started", syncRemoteAudioTracks);
+
+          // Other participant hangs up
+          callObject.on("participant-left", (event: any) => {
+            if (event.participant && !event.participant.local) {
+              setCallStatus("ENDED");
+              setStatusMessage("Call Ended by other party");
+              setTimeout(onClose, 1000);
+            }
+          });
+
+          callObject.on("error", (err: any) => {
+            console.warn("Daily voice engine error:", err);
+          });
+
+          // Join the room with automatic track subscription
+          await callObject.join({ url: resolvedRoomUrl, subscribeToTracksAutomatically: true });
+
+          // Periodic background sync (every 1s) to ensure audio track stays locked
+          audioSyncInterval = setInterval(syncRemoteAudioTracks, 1000);
+        } catch (err: any) {
+          console.warn("Could not connect to voice room:", err);
+          setMicNotice("Microphone active / Connecting audio...");
         }
       };
 
-      setupWebRTC();
+      connectDaily();
 
-      // 4. Remote participant termination poll (every 1000ms)
+      // 3. Remote participant termination poll (every 800ms as backend backup)
       if (targetId && activeToken) {
         remoteCheckInterval = setInterval(async () => {
           try {
-            const res = await fetch(
-              `http://localhost:4000/api/calls/${targetId}`,
-              {
-                headers: { Authorization: `Bearer ${activeToken}` },
-              },
-            );
+            const res = await fetch(`${API_BASE_URL}/api/calls/${targetId}`, {
+              headers: { Authorization: `Bearer ${activeToken}` },
+            });
             const data = await res.json();
             const call = data.data;
             if (res.ok && call) {
@@ -395,41 +363,45 @@ export default function VoiceCallModal({
               }
             }
           } catch (e) {}
-        }, 1000);
+        }, 800);
       }
     }
 
     return () => {
+      isMounted = false;
       if (durationInterval) clearInterval(durationInterval);
-      if (signalingInterval) clearInterval(signalingInterval);
       if (remoteCheckInterval) clearInterval(remoteCheckInterval);
+      if (audioSyncInterval) clearInterval(audioSyncInterval);
 
-      // Clean up audio streams and WebRTC connections
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => track.stop());
-        localStreamRef.current = null;
-      }
-      if (peerConnRef.current) {
-        peerConnRef.current.close();
-        peerConnRef.current = null;
+      if (dailyRef.current) {
+        try {
+          dailyRef.current.leave();
+          dailyRef.current.destroy();
+        } catch (e) {}
+        dailyRef.current = null;
       }
       if (remoteAudioRef.current) {
         remoteAudioRef.current.srcObject = null;
-        remoteAudioRef.current = null;
+      }
+      if (audioCtxRef.current) {
+        try {
+          audioCtxRef.current.close().catch(() => {});
+        } catch (e) {}
+        audioCtxRef.current = null;
       }
     };
-  }, [callStatus, activeCallId, existingCallId, token, onClose]);
+  }, [callStatus, activeCallId, existingCallId, activeRoomUrl, token, onClose, bookingId]);
 
   // Handle Mute/Unmute
   const toggleMute = () => {
-    if (localStreamRef.current) {
-      const nextMuted = !isMuted;
-      localStreamRef.current.getAudioTracks().forEach((track) => {
-        track.enabled = !nextMuted;
-      });
-      setIsMuted(nextMuted);
-    } else {
-      setIsMuted(!isMuted);
+    unlockAudio();
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+
+    if (dailyRef.current) {
+      try {
+        dailyRef.current.setLocalAudio(!nextMuted);
+      } catch (e) {}
     }
   };
 
@@ -438,31 +410,31 @@ export default function VoiceCallModal({
     if (pollTimerRef.current) clearInterval(pollTimerRef.current);
     if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
 
-    // Stop microphone & WebRTC immediately
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => track.stop());
-      localStreamRef.current = null;
-    }
-    if (peerConnRef.current) {
-      peerConnRef.current.close();
-      peerConnRef.current = null;
+    // Stop Daily call object
+    if (dailyRef.current) {
+      try {
+        dailyRef.current.leave();
+        dailyRef.current.destroy();
+      } catch (e) {}
+      dailyRef.current = null;
     }
     if (remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = null;
-      remoteAudioRef.current = null;
+    }
+    if (audioCtxRef.current) {
+      try {
+        audioCtxRef.current.close().catch(() => {});
+      } catch (e) {}
+      audioCtxRef.current = null;
     }
 
     setCallStatus("ENDED");
-    const activeToken =
-      token ||
-      (typeof window !== "undefined"
-        ? localStorage.getItem("bayflow_token")
-        : null);
-    const targetCallId = activeCallId || existingCallId;
+    const activeToken = token || getAuthToken();
+    const targetCallId = activeCallId || existingCallId || bookingId;
 
     if (activeToken && targetCallId) {
       try {
-        await fetch(`http://localhost:4000/api/calls/${targetCallId}/status`, {
+        await fetch(`${API_BASE_URL}/api/calls/${targetCallId}/status`, {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
@@ -488,7 +460,27 @@ export default function VoiceCallModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#111827]/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+    <div
+      onClick={unlockAudio}
+      className="fixed inset-0 z-50 bg-[#111827]/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+    >
+      {/* Real DOM Audio Element for incoming stream output */}
+      <audio
+        ref={remoteAudioRef}
+        autoPlay
+        playsInline
+        style={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          width: "1px",
+          height: "1px",
+          opacity: 0.01,
+          pointerEvents: "none",
+        }}
+        aria-hidden="true"
+      />
+
       <div className="bg-[#111827] border border-white/20 text-white rounded-3xl max-w-sm w-full p-8 text-center space-y-6 shadow-2xl relative overflow-hidden">
         {/* Animated Background Glow */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-slate-500/15 rounded-full blur-3xl pointer-events-none" />
@@ -498,9 +490,7 @@ export default function VoiceCallModal({
             {callStatus === "RINGING" && (
               <span className="absolute inset-0 rounded-full border-2 border-amber-400 animate-ping opacity-75" />
             )}
-            <span className="material-symbols-outlined text-4xl">
-              phone_in_talk
-            </span>
+            <span className="material-symbols-outlined text-4xl">phone_in_talk</span>
           </div>
 
           <div>
@@ -510,9 +500,7 @@ export default function VoiceCallModal({
             <h3 className="font-headline text-2xl font-extrabold text-white mt-1">
               {recipientName}
             </h3>
-            <p className="text-xs text-white/70 font-mono mt-0.5">
-              Ref: {bookingId}
-            </p>
+            <p className="text-xs text-white/70 font-mono mt-0.5">Ref: {bookingId}</p>
           </div>
 
           <div className="pt-2">
@@ -548,9 +536,7 @@ export default function VoiceCallModal({
           <button
             onClick={toggleMute}
             className={`w-12 h-12 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-              isMuted
-                ? "bg-rose-500 text-white"
-                : "bg-white/10 hover:bg-white/20 text-white"
+              isMuted ? "bg-rose-500 text-white" : "bg-white/10 hover:bg-white/20 text-white"
             }`}
             title={isMuted ? "Unmute Microphone" : "Mute Microphone"}
           >

@@ -1,5 +1,7 @@
 "use client";
 
+import { API_BASE_URL } from "@/lib/api";
+
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 
@@ -128,7 +130,7 @@ export default function OwnerView({ token, userId, email }: OwnerViewProps) {
     }
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:4000/api/shops", {
+      const res = await fetch(`${API_BASE_URL}/api/shops`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -166,7 +168,7 @@ export default function OwnerView({ token, userId, email }: OwnerViewProps) {
     }
     setLoadingTeam(true);
     try {
-      const res = await fetch(`http://localhost:4000/api/shops/${shopId}/team`, {
+      const res = await fetch(`${API_BASE_URL}/api/shops/${shopId}/team`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "X-Shop-Id": shopId,
@@ -193,7 +195,7 @@ export default function OwnerView({ token, userId, email }: OwnerViewProps) {
     }
     setLoadingServices(true);
     try {
-      const res = await fetch(`http://localhost:4000/api/shops/${shopId}/services`);
+      const res = await fetch(`${API_BASE_URL}/api/shops/${shopId}/services`);
       const data = await res.json();
       const servicesList = data.data || data.services;
       if (res.ok && data.success && Array.isArray(servicesList)) {
@@ -211,7 +213,7 @@ export default function OwnerView({ token, userId, email }: OwnerViewProps) {
   const fetchAnalytics = async (shopId: string) => {
     if (!token || !shopId) return;
     try {
-      const res = await fetch(`http://localhost:4000/api/shops/${shopId}/analytics`, {
+      const res = await fetch(`${API_BASE_URL}/api/shops/${shopId}/analytics`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "X-Shop-Id": shopId,
@@ -231,7 +233,7 @@ export default function OwnerView({ token, userId, email }: OwnerViewProps) {
     if (!token || !shopId) return;
     setLoadingBookings(true);
     try {
-      const res = await fetch(`http://localhost:4000/api/bookings?shopId=${shopId}`, {
+      const res = await fetch(`${API_BASE_URL}/api/bookings?shopId=${shopId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "X-Shop-Id": shopId,
@@ -256,7 +258,7 @@ export default function OwnerView({ token, userId, email }: OwnerViewProps) {
     e.preventDefault();
     setShopError("");
     try {
-      const res = await fetch("http://localhost:4000/api/shops", {
+      const res = await fetch(`${API_BASE_URL}/api/shops`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -298,7 +300,7 @@ export default function OwnerView({ token, userId, email }: OwnerViewProps) {
     }
 
     try {
-      const res = await fetch(`http://localhost:4000/api/shops/${selectedShopId}/team`, {
+      const res = await fetch(`${API_BASE_URL}/api/shops/${selectedShopId}/team`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -327,7 +329,7 @@ export default function OwnerView({ token, userId, email }: OwnerViewProps) {
     if (!selectedShopId) return;
 
     try {
-      const res = await fetch(`http://localhost:4000/api/shops/${selectedShopId}/services`, {
+      const res = await fetch(`${API_BASE_URL}/api/shops/${selectedShopId}/services`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -361,7 +363,7 @@ export default function OwnerView({ token, userId, email }: OwnerViewProps) {
 
     setOnboardingStaffSubmitting(true);
     try {
-      const res = await fetch(`http://localhost:4000/api/shops/${selectedShopId}/team`, {
+      const res = await fetch(`${API_BASE_URL}/api/shops/${selectedShopId}/team`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -399,7 +401,7 @@ export default function OwnerView({ token, userId, email }: OwnerViewProps) {
 
     setOnboardingServiceSubmitting(true);
     try {
-      const res = await fetch(`http://localhost:4000/api/shops/${selectedShopId}/services`, {
+      const res = await fetch(`${API_BASE_URL}/api/shops/${selectedShopId}/services`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

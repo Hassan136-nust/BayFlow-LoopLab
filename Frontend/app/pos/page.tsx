@@ -1,4 +1,7 @@
 "use client";
+import { getAuthToken, setAuthToken, clearAuthToken, getAuthRole, setAuthRole, clearAuthRole } from "@/lib/auth";
+
+import { API_BASE_URL } from "@/lib/api";
 
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
@@ -32,7 +35,7 @@ function POSContent() {
 
   // Load auth token and available shop branches
   useEffect(() => {
-    const storedToken = typeof window !== "undefined" ? localStorage.getItem("bayflow_token") : null;
+    const storedToken = getAuthToken();
     setToken(storedToken);
 
     // Decode token to find default shopId if present
@@ -53,7 +56,7 @@ function POSContent() {
   const fetchShops = async () => {
     setLoadingShops(true);
     try {
-      const res = await fetch("http://localhost:4000/api/shops");
+      const res = await fetch(`${API_BASE_URL}/api/shops`);
       const data = await res.json();
       const shopList = data.data || data.shops || [];
       setShops(shopList);

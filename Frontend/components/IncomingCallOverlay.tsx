@@ -1,4 +1,7 @@
 "use client";
+import { getAuthToken, setAuthToken, clearAuthToken, getAuthRole, setAuthRole, clearAuthRole } from "@/lib/auth";
+
+import { API_BASE_URL } from "@/lib/api";
 
 import React, { useState, useEffect, useRef } from "react";
 import VoiceCallModal from "@/components/VoiceCallModal";
@@ -26,12 +29,12 @@ export default function IncomingCallOverlay({ token }: IncomingCallOverlayProps)
       if (activeCallRef.current) return;
 
       const activeToken =
-        token || (typeof window !== "undefined" ? localStorage.getItem("bayflow_token") : null);
+        token || (getAuthToken());
 
       if (!activeToken) return;
 
       try {
-        const res = await fetch("http://localhost:4000/api/calls/incoming", {
+        const res = await fetch(`${API_BASE_URL}/api/calls/incoming`, {
           headers: { Authorization: `Bearer ${activeToken}` },
         });
 
@@ -86,11 +89,11 @@ export default function IncomingCallOverlay({ token }: IncomingCallOverlayProps)
     setIncomingCall(null);
 
     const activeToken =
-      token || (typeof window !== "undefined" ? localStorage.getItem("bayflow_token") : null);
+      token || (getAuthToken());
 
     if (activeToken) {
       try {
-        await fetch(`http://localhost:4000/api/calls/${acceptedCall.id}/status`, {
+        await fetch(`${API_BASE_URL}/api/calls/${acceptedCall.id}/status`, {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
@@ -113,11 +116,11 @@ export default function IncomingCallOverlay({ token }: IncomingCallOverlayProps)
     setIncomingCall(null);
 
     const activeToken =
-      token || (typeof window !== "undefined" ? localStorage.getItem("bayflow_token") : null);
+      token || (getAuthToken());
 
     if (activeToken) {
       try {
-        await fetch(`http://localhost:4000/api/calls/${currentCallId}/status`, {
+        await fetch(`${API_BASE_URL}/api/calls/${currentCallId}/status`, {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
@@ -230,7 +233,7 @@ export default function IncomingCallOverlay({ token }: IncomingCallOverlayProps)
       {/* ACTIVE CONNECTED CALL MODAL FOR RECEIVER */}
       {activeCall && (
         <VoiceCallModal
-          token={token || (typeof window !== "undefined" ? localStorage.getItem("bayflow_token") : null)}
+          token={token || (getAuthToken())}
           bookingId={activeCall.bookingId}
           recipientName={callerTitle}
           isOpen={true}
@@ -239,6 +242,7 @@ export default function IncomingCallOverlay({ token }: IncomingCallOverlayProps)
           }}
           initialStatus="CONNECTED"
           existingCallId={activeCall.id}
+          roomUrl={activeCall.roomUrl}
         />
       )}
     </>

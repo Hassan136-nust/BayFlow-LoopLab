@@ -1,4 +1,5 @@
 "use client";
+import { getAuthToken, setAuthToken, clearAuthToken, getAuthRole, setAuthRole, clearAuthRole } from "@/lib/auth";
 
 import React from "react";
 import { useRouter } from "next/navigation";
@@ -12,7 +13,7 @@ export default function CtaSection({ onOpenDemo }: CtaSectionProps) {
   const router = useRouter();
 
   const handleLaunchPlatform = () => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("bayflow_token") : null;
+    const token = getAuthToken();
     if (token) {
       router.push("/dashboard");
     } else {

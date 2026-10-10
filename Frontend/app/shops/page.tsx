@@ -1,4 +1,7 @@
 "use client";
+import { getAuthToken, setAuthToken, clearAuthToken, getAuthRole, setAuthRole, clearAuthRole } from "@/lib/auth";
+
+import { API_BASE_URL } from "@/lib/api";
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
@@ -184,7 +187,7 @@ export default function ShopsPage() {
   }, []);
 
   const checkAuthSession = () => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("bayflow_token") : null;
+    const token = getAuthToken();
     if (token) {
       try {
         const payload = JSON.parse(atob(token.split(".")[1]));
@@ -202,7 +205,7 @@ export default function ShopsPage() {
   const fetchShops = async () => {
     setLoadingShops(true);
     try {
-      const res = await fetch("http://localhost:4000/api/shops");
+      const res = await fetch(`${API_BASE_URL}/api/shops`);
       const data = await res.json();
       const shopList = data.data || data.shops;
       if (res.ok && data.success && Array.isArray(shopList) && shopList.length > 0) {
@@ -230,7 +233,7 @@ export default function ShopsPage() {
     // Fetch services for shop
     setLoadingServices(true);
     try {
-      const res = await fetch(`http://localhost:4000/api/shops/${shop.id}/services`);
+      const res = await fetch(`${API_BASE_URL}/api/shops/${shop.id}/services`);
       const data = await res.json();
       const servicesList = data.data || data.services;
       if (res.ok && data.success && Array.isArray(servicesList) && servicesList.length > 0) {
@@ -249,7 +252,7 @@ export default function ShopsPage() {
   const fetchSlotsForShop = async (shopId: string, dateStr: string) => {
     setLoadingSlots(true);
     try {
-      const res = await fetch(`http://localhost:4000/api/shops/${shopId}/slots?date=${dateStr}`);
+      const res = await fetch(`${API_BASE_URL}/api/shops/${shopId}/slots?date=${dateStr}`);
       const data = await res.json();
       const slotsList = data.data || data.slots;
       if (res.ok && data.success && Array.isArray(slotsList) && slotsList.length > 0) {
@@ -279,7 +282,7 @@ export default function ShopsPage() {
     setIsSubmitting(true);
     setErrorMsg("");
 
-    let authToken = typeof window !== "undefined" ? localStorage.getItem("bayflow_token") : null;
+    let authToken = getAuthToken();
 
     // Parse make, model, year from input string
     const parts = vehicle.makeModel.split(" ");
@@ -325,7 +328,7 @@ export default function ShopsPage() {
         headers["Authorization"] = `Bearer ${authToken}`;
       }
 
-      const res = await fetch("http://localhost:4000/api/bookings", {
+      const res = await fetch(`${API_BASE_URL}/api/bookings`, {
         method: "POST",
         headers,
         body: JSON.stringify(payload),
@@ -336,8 +339,8 @@ export default function ShopsPage() {
       if (res.ok && data.success) {
         const confirmedBooking = data.data || data.booking;
         if (data.accessToken) {
-          localStorage.setItem("bayflow_token", data.accessToken);
-          localStorage.setItem("bayflow_user_role", "CUSTOMER");
+          setAuthToken(data.accessToken);
+          setAuthRole("CUSTOMER");
         }
         setCreatedBooking(confirmedBooking);
         setStep(4);

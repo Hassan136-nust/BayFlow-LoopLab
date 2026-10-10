@@ -1,4 +1,7 @@
 "use client";
+import { getAuthToken, setAuthToken, clearAuthToken, getAuthRole, setAuthRole, clearAuthRole } from "@/lib/auth";
+
+import { API_BASE_URL } from "@/lib/api";
 
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
@@ -339,8 +342,8 @@ export default function GuidedBookingWizard({
   const [userRole, setUserRole] = useState<string | null>(null);
 
   const checkAuthStatus = () => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("bayflow_token") : null;
-    const storedRole = typeof window !== "undefined" ? localStorage.getItem("bayflow_user_role") : null;
+    const token = getAuthToken();
+    const storedRole = getAuthRole();
     if (storedRole) setUserRole(storedRole);
 
     if (token) {
@@ -365,7 +368,7 @@ export default function GuidedBookingWizard({
   const fetchShops = async (targetShopId?: string | null) => {
     setLoadingShops(true);
     try {
-      const res = await fetch("http://localhost:4000/api/shops");
+      const res = await fetch(`${API_BASE_URL}/api/shops`);
       const data = await res.json();
       const shopList = data.data || data.shops;
       if (res.ok && data.success && Array.isArray(shopList) && shopList.length > 0) {
@@ -402,7 +405,7 @@ export default function GuidedBookingWizard({
   const fetchAvailableSlots = async (shopId: string, dateStr: string) => {
     setLoadingSlots(true);
     try {
-      const res = await fetch(`http://localhost:4000/api/shops/${shopId}/slots?date=${dateStr}`);
+      const res = await fetch(`${API_BASE_URL}/api/shops/${shopId}/slots?date=${dateStr}`);
       const data = await res.json();
       const slots = data.data || data.slots;
       if (res.ok && data.success && Array.isArray(slots) && slots.length > 0) {
@@ -514,7 +517,7 @@ export default function GuidedBookingWizard({
     setIsSubmitting(true);
     setSubmitError("");
 
-    const authToken = typeof window !== "undefined" ? localStorage.getItem("bayflow_token") : null;
+    const authToken = getAuthToken();
     const slotDateTime = new Date(`${selectedDate} ${selectedSlotTime || "10:00 AM"}`).toISOString();
 
     const payload: any = {
@@ -545,7 +548,7 @@ export default function GuidedBookingWizard({
       const headers: any = { "Content-Type": "application/json" };
       if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
 
-      const res = await fetch("http://localhost:4000/api/bookings", {
+      const res = await fetch(`${API_BASE_URL}/api/bookings`, {
         method: "POST",
         headers,
         body: JSON.stringify(payload),
@@ -556,8 +559,8 @@ export default function GuidedBookingWizard({
       if (res.ok && data.success) {
         const resultBooking = data.data || data.booking;
         if (data.accessToken) {
-          localStorage.setItem("bayflow_token", data.accessToken);
-          localStorage.setItem("bayflow_user_role", "CUSTOMER");
+          setAuthToken(data.accessToken);
+          setAuthRole("CUSTOMER");
         }
         setConfirmedBooking(resultBooking);
         setCurrentStep(6);

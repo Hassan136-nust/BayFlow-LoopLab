@@ -1,4 +1,5 @@
 "use client";
+import { getAuthToken, setAuthToken, clearAuthToken, getAuthRole, setAuthRole, clearAuthRole } from "@/lib/auth";
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
@@ -18,11 +19,11 @@ export default function Navbar({ onOpenDemo }: NavbarProps) {
   const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
-    const storedToken = localStorage.getItem("bayflow_token");
+    const storedToken = getAuthToken();
     setToken(storedToken);
     setIsAuthenticated(!!storedToken);
 
-    const storedRole = localStorage.getItem("bayflow_user_role");
+    const storedRole = getAuthRole();
     if (storedRole) {
       setUserRole(storedRole);
     } else if (storedToken) {
@@ -34,8 +35,8 @@ export default function Navbar({ onOpenDemo }: NavbarProps) {
   }, []);
 
   const handleSignOut = () => {
-    localStorage.removeItem("bayflow_token");
-    localStorage.removeItem("bayflow_user_role");
+    clearAuthToken();
+    clearAuthRole();
     setIsAuthenticated(false);
     setUserRole(null);
     router.replace("/login");

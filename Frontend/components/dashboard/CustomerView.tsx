@@ -1,5 +1,7 @@
 "use client";
 
+import { API_BASE_URL } from "@/lib/api";
+
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import VoiceCallModal from "@/components/VoiceCallModal";
@@ -56,7 +58,7 @@ export default function CustomerView({ token, userId, email }: CustomerViewProps
     setLoading(true);
     setErrorMsg("");
     try {
-      const res = await fetch("http://localhost:4000/api/bookings", {
+      const res = await fetch(`${API_BASE_URL}/api/bookings`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -89,7 +91,7 @@ export default function CustomerView({ token, userId, email }: CustomerViewProps
     setShowHistoryModal(true);
     setLoadingHistory(true);
     try {
-      const res = await fetch(`http://localhost:4000/api/bookings/${bookingId}/history`, {
+      const res = await fetch(`${API_BASE_URL}/api/bookings/${bookingId}/history`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -111,7 +113,7 @@ export default function CustomerView({ token, userId, email }: CustomerViewProps
     setShowVehicleModal(true);
     setLoadingVehicleHistory(true);
     try {
-      const res = await fetch(`http://localhost:4000/api/bookings/vehicle/${plateNumber}`, {
+      const res = await fetch(`${API_BASE_URL}/api/bookings/vehicle/${plateNumber}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -132,7 +134,7 @@ export default function CustomerView({ token, userId, email }: CustomerViewProps
     setActionSuccess("");
     setErrorMsg("");
     try {
-      const res = await fetch(`http://localhost:4000/api/bookings/${bookingId}/estimate/respond`, {
+      const res = await fetch(`${API_BASE_URL}/api/bookings/${bookingId}/estimate/respond`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -160,7 +162,7 @@ export default function CustomerView({ token, userId, email }: CustomerViewProps
     setActionSuccess("");
     setErrorMsg("");
     try {
-      const res = await fetch(`http://localhost:4000/api/bookings/${bookingId}/status`, {
+      const res = await fetch(`${API_BASE_URL}/api/bookings/${bookingId}/status`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

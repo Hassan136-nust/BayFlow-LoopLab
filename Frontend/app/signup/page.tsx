@@ -1,5 +1,7 @@
 "use client";
 
+import { API_BASE_URL } from "@/lib/api";
+
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -38,7 +40,7 @@ export default function SignupPage() {
       if (formData.phoneNumber) payload.phoneNumber = formData.phoneNumber;
       if (formData.role === "OWNER" && formData.shopName) payload.shopName = formData.shopName;
 
-      const res = await fetch("http://localhost:4000/api/auth/register", {
+      const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
